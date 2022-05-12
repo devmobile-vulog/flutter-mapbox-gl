@@ -644,6 +644,22 @@ final class MapboxMapController
 		    }
         break;
       }
+      case "map#updateContentInsets":{
+        HashMap<String, Object> insets = call.argument("bounds");
+        final CameraUpdate cameraUpdate =
+            CameraUpdateFactory.paddingTo(
+                Convert.toPixels(insets.get("left"), density),
+                Convert.toPixels(insets.get("top"), density),
+                Convert.toPixels(insets.get("right"), density),
+                Convert.toPixels(insets.get("bottom"), density));
+
+        if (call.argument("animated")) {
+          animateCamera(cameraUpdate, null, result);
+        } else {
+          moveCamera(cameraUpdate, result);
+        }
+        break;
+      }
 	    case "map#setMapLanguage": {
   	    final String language = call.argument("language");
         try {
