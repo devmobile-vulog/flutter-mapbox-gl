@@ -18,6 +18,7 @@ import android.os.Build;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -34,6 +35,7 @@ import com.mapbox.android.core.location.LocationEngineCallback;
 import com.mapbox.android.core.location.LocationEngineProvider;
 import com.mapbox.android.core.location.LocationEngineResult;
 import com.mapbox.android.gestures.AndroidGesturesManager;
+import com.mapbox.android.gestures.MoveGestureDetector;
 import com.mapbox.android.telemetry.TelemetryEnabler;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
@@ -150,6 +152,7 @@ final class MapboxMapController
   private int myLocationTrackingMode = 0;
   private int myLocationRenderMode = 0;
   private boolean disposed = false;
+  private boolean dragEnabled = true;
   private final float density;
   private MethodChannel.Result mapReadyResult;
   private final Context context;
@@ -165,7 +168,11 @@ final class MapboxMapController
   private LatLngBounds bounds = null;
   private static final String annotationManagerNotCreatedErrorCode = "NO ANNOTATION MANAGER";
   private static final String annotationManagerNotCreatedErrorMessage = "To use %ss please add it to the annotation list";
+  private Feature draggedFeature;
   private AndroidGesturesManager androidGesturesManager;
+
+  private LatLng dragOrigin;
+  private LatLng dragPrevious;
 
   MapboxMapController(
           int id,
@@ -176,10 +183,12 @@ final class MapboxMapController
           String accessToken,
           String styleStringInitial,
           List<String> annotationOrder,
-          List<String> annotationConsumeTapEvents) {
+          List<String> annotationConsumeTapEvents,
+          boolean dragEnabled) {
     MapBoxUtils.getMapbox(context, accessToken);
     this.id = id;
     this.context = context;
+    this.dragEnabled = dragEnabled;
     this.styleStringInitial = styleStringInitial;
     this.mapView = new MapView(context, options);
     this.featureLayerIdentifiers = new HashSet<>();
@@ -193,7 +202,9 @@ final class MapboxMapController
     methodChannel.setMethodCallHandler(this);
     this.annotationOrder = annotationOrder;
     this.annotationConsumeTapEvents = annotationConsumeTapEvents;
-    this.androidGesturesManager = new AndroidGesturesManager(this.mapView.getContext(), false);
+    if (dragEnabled) {
+      this.androidGesturesManager = new AndroidGesturesManager(this.mapView.getContext(), false);
+    }
   }
 
   @Override
@@ -294,21 +305,25 @@ final class MapboxMapController
     mapboxMap.addOnCameraMoveListener(this);
     mapboxMap.addOnCameraIdleListener(this);
 
+    Log.e("vulog", "=== ANDROID GESTURE WAITING");
     if (androidGesturesManager != null) {
+      Log.e("vulog", "=== ANDROID SET GESTURE");
       androidGesturesManager.setMoveGestureListener(new MoveGestureListener());
+      Log.e("vulog", "=== ANDROID OK");
       mapView.setOnTouchListener(
         new View.OnTouchListener() {
-              @Override
-              public boolean onTouch(View v, MotionEvent event) {
-                if (event.getActionIndex() >= event.getPointerCount()) {
-                  // Consume invalid event so it is not propagated
-                  return true;
-                }
+          @Override
+          public boolean onTouch(View v, MotionEvent event) {
+            Log.e("vulog", "=== TOUCH OK");
+            if (event.getActionIndex() >= event.getPointerCount()) {
+              // Consume invalid event so it is not propagated
+              return true;
+            }
 
-                androidGesturesManager.onTouchEvent(event);
+            androidGesturesManager.onTouchEvent(event);
 
-                return true;
-              }
+            return draggedFeature != null;
+          }
         });
     }
 
@@ -1938,6 +1953,84 @@ final class MapboxMapController
     return bitmap;
   }
 
+
+
+  boolean onMoveBegin(MoveGestureDetector detector) {
+    // onMoveBegin gets called even during a move - move end is also not called unless this function
+    // returns
+    // true at least once. To avoid redundant queries only check for feature if the previous event
+    // was ACTION_DOWN
+    if (detector.getPreviousEvent().getActionMasked() == MotionEvent.ACTION_DOWN
+        && detector.getPointersCount() == 1) {
+      PointF pointf = detector.getFocalPoint();
+      LatLng origin = mapboxMap.getProjection().fromScreenLocation(pointf);
+      RectF rectF = new RectF(pointf.x - 10, pointf.y - 10, pointf.x + 10, pointf.y + 10);
+      Feature feature = firstFeatureOnLayers(rectF);
+      if (feature != null && startDragging(feature, origin)) {
+        invokeFeatureDrag(pointf, "start");
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private void invokeFeatureDrag(PointF pointf, String eventType) {
+    LatLng current = mapboxMap.getProjection().fromScreenLocation(pointf);
+
+    final Map<String, Object> arguments = new HashMap<>(9);
+    arguments.put("id", draggedFeature.id());
+    arguments.put("x", pointf.x);
+    arguments.put("y", pointf.y);
+    arguments.put("originLng", dragOrigin.getLongitude());
+    arguments.put("originLat", dragOrigin.getLatitude());
+    arguments.put("currentLng", current.getLongitude());
+    arguments.put("currentLat", current.getLatitude());
+    arguments.put("eventType", eventType);
+    arguments.put("deltaLng", current.getLongitude() - dragPrevious.getLongitude());
+    arguments.put("deltaLat", current.getLatitude() - dragPrevious.getLatitude());
+    dragPrevious = current;
+    methodChannel.invokeMethod("feature#onDrag", arguments);
+  }
+
+  boolean onMove(MoveGestureDetector detector) {
+    if (draggedFeature != null) {
+      if (detector.getPointersCount() > 1) {
+        stopDragging();
+        return true;
+      }
+      PointF pointf = detector.getFocalPoint();
+      invokeFeatureDrag(pointf, "drag");
+      return false;
+    }
+    return true;
+  }
+
+  void onMoveEnd(MoveGestureDetector detector) {
+    PointF pointf = detector.getFocalPoint();
+    invokeFeatureDrag(pointf, "end");
+    stopDragging();
+  }
+
+  boolean startDragging(@NonNull Feature feature, @NonNull LatLng origin) {
+    final boolean draggable =
+        feature.hasNonNullValueForProperty("draggable")
+            ? feature.getBooleanProperty("draggable")
+            : false;
+    if (draggable) {
+      draggedFeature = feature;
+      dragPrevious = origin;
+      dragOrigin = origin;
+      return true;
+    }
+    return false;
+  }
+
+  void stopDragging() {
+    draggedFeature = null;
+    dragOrigin = null;
+    dragPrevious = null;
+  }
+
   /**
    * Simple Listener to listen for the status of camera movements.
    */
@@ -1948,6 +2041,26 @@ final class MapboxMapController
 
     @Override
     public void onCancel() {
+    }
+  }
+  private class MoveGestureListener implements MoveGestureDetector.OnMoveGestureListener {
+
+    @Override
+    public boolean onMoveBegin(MoveGestureDetector detector) {
+      Log.e("vulog", "==== MOVE BEGIN");
+      return MapboxMapController.this.onMoveBegin(detector);
+    }
+
+    @Override
+    public boolean onMove(MoveGestureDetector detector, float distanceX, float distanceY) {
+      Log.e("vulog", "==== MOVE");
+      return MapboxMapController.this.onMove(detector);
+    }
+
+    @Override
+    public void onMoveEnd(MoveGestureDetector detector, float velocityX, float velocityY) {
+      Log.e("vulog", "==== MOVE END");
+      MapboxMapController.this.onMoveEnd(detector);
     }
   }
 }

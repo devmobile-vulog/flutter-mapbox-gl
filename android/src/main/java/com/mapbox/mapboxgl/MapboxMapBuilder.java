@@ -38,7 +38,7 @@ class MapboxMapBuilder implements MapboxMapOptionsSink {
   MapboxMapController build(
     int id, Context context, BinaryMessenger messenger, MapboxMapsPlugin.LifecycleProvider lifecycleProvider, String accessToken) {
     final MapboxMapController controller =
-      new MapboxMapController(id, context,  messenger, lifecycleProvider, options, accessToken, styleString, annotationOrder, annotationConsumeTapEvents);
+      new MapboxMapController(id, context,  messenger, lifecycleProvider, options, accessToken, styleString, annotationOrder, annotationConsumeTapEvents, true);
     controller.init();
     controller.setMyLocationEnabled(myLocationEnabled);
     controller.setMyLocationTrackingMode(myLocationTrackingMode);
