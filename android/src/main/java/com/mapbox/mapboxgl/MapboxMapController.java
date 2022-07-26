@@ -33,6 +33,7 @@ import com.mapbox.android.core.location.LocationEngine;
 import com.mapbox.android.core.location.LocationEngineCallback;
 import com.mapbox.android.core.location.LocationEngineProvider;
 import com.mapbox.android.core.location.LocationEngineResult;
+import com.mapbox.android.gestures.AndroidGesturesManager;
 import com.mapbox.android.telemetry.TelemetryEnabler;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
@@ -164,6 +165,7 @@ final class MapboxMapController
   private LatLngBounds bounds = null;
   private static final String annotationManagerNotCreatedErrorCode = "NO ANNOTATION MANAGER";
   private static final String annotationManagerNotCreatedErrorMessage = "To use %ss please add it to the annotation list";
+  private AndroidGesturesManager androidGesturesManager;
 
   MapboxMapController(
           int id,
@@ -191,6 +193,7 @@ final class MapboxMapController
     methodChannel.setMethodCallHandler(this);
     this.annotationOrder = annotationOrder;
     this.annotationConsumeTapEvents = annotationConsumeTapEvents;
+    this.androidGesturesManager = new AndroidGesturesManager(this.mapView.getContext(), false);
   }
 
   @Override
@@ -290,6 +293,25 @@ final class MapboxMapController
     mapboxMap.addOnCameraMoveStartedListener(this);
     mapboxMap.addOnCameraMoveListener(this);
     mapboxMap.addOnCameraIdleListener(this);
+
+    if (androidGesturesManager != null) {
+      androidGesturesManager.setMoveGestureListener(new MoveGestureListener());
+      mapView.setOnTouchListener(
+        new View.OnTouchListener() {
+              @Override
+              public boolean onTouch(View v, MotionEvent event) {
+                if (event.getActionIndex() >= event.getPointerCount()) {
+                  // Consume invalid event so it is not propagated
+                  return true;
+                }
+
+                androidGesturesManager.onTouchEvent(event);
+
+                return true;
+              }
+        });
+      );
+    }
 
     mapView.addOnStyleImageMissingListener((id) -> {
       DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
