@@ -310,7 +310,6 @@ final class MapboxMapController
                 return true;
               }
         });
-      );
     }
 
     mapView.addOnStyleImageMissingListener((id) -> {
