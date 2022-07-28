@@ -218,6 +218,10 @@ final class MapboxMapController
           new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
+              if (event.getActionIndex() >= event.getPointerCount()) {
+                // Consume invalid event so it is not propagated
+                return true;
+              }
               androidGesturesManager.onTouchEvent(event);
 
               return draggedFeature != null;
