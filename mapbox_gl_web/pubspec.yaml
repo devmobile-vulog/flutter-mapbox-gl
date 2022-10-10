@@ -23,10 +23,6 @@ dependencies:
   mapbox_gl_dart: ^0.2.1
   image: ^3.0.0
 
-dependency_overrides:
-  mapbox_gl_platform_interface:
-    path: ../mapbox_gl_platform_interface
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
