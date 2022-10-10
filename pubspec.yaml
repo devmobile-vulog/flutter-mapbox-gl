@@ -18,6 +18,17 @@ dependency_overrides:
   mapbox_gl_web:
     path: ./mapbox_gl_web
 
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.mapbox.mapboxgl
+        pluginClass: MapboxMapsPlugin
+      ios:
+        pluginClass: MapboxMapsPlugin
+      web:
+        default_package: mapbox_gl_web
+
 environment:
   sdk: '>=2.12.0 <3.0.0'
   # Flutter versions prior to 1.10 did not support the flutter.plugin.platforms map.
