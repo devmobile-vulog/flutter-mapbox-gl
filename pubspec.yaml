@@ -7,21 +7,16 @@ dependencies:
   flutter:
     sdk: flutter
   mapbox_gl_platform_interface:
-      path: mapbox_gl_platform_interface
+    path: mapbox_gl_platform_interface
   mapbox_gl_web:
-      path: mapbox_gl_web
+    path: mapbox_gl_web
   collection: ^1.15.0
 
-flutter:
-  plugin:
-    platforms:
-      android:
-        package: com.mapbox.mapboxgl
-        pluginClass: MapboxMapsPlugin
-      ios:
-        pluginClass: MapboxMapsPlugin
-      web:
-        default_package: mapbox_gl_web
+dependency_overrides:
+  mapbox_gl_platform_interface:
+    path: ./mapbox_gl_platform_interface
+  mapbox_gl_web:
+    path: ./mapbox_gl_web
 
 environment:
   sdk: '>=2.12.0 <3.0.0'
