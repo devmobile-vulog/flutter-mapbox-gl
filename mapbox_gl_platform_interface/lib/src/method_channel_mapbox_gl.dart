@@ -211,9 +211,10 @@ class MethodChannelMapboxGl extends MapboxGlPlatform {
   }
 
   @override
-  Future<bool?> animateCamera(cameraUpdate) async {
+  Future<bool?> animateCamera(cameraUpdate, {Duration? duration}) async {
     return await _channel.invokeMethod('camera#animate', <String, dynamic>{
       'cameraUpdate': cameraUpdate.toJson(),
+      'duration': duration?.inMilliseconds,
     });
   }
 
@@ -678,4 +679,10 @@ class MethodChannelMapboxGl extends MapboxGlPlatform {
       'geojsonFeature': jsonEncode(geojsonFeature)
     });
   }
+
+  @override
+  void forceResizeWebMap() {}
+
+  @override
+  void resizeWebMap() {}
 }

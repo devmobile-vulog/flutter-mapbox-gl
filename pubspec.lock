@@ -63,17 +63,17 @@ packages:
   mapbox_gl_platform_interface:
     dependency: "direct main"
     description:
-      name: mapbox_gl_platform_interface
-      url: "https://pub.dartlang.org"
-    source: hosted
-    version: "0.16.0"
+      path: mapbox_gl_platform_interface
+      relative: true
+    source: path
+    version: "0.16.1"
   mapbox_gl_web:
     dependency: "direct main"
     description:
-      name: mapbox_gl_web
-      url: "https://pub.dartlang.org"
-    source: hosted
-    version: "0.16.0"
+      path: mapbox_gl_web
+      relative: true
+    source: path
+    version: "0.16.1"
   material_color_utilities:
     dependency: transitive
     description:
